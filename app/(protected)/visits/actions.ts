@@ -45,20 +45,20 @@ export async function createVisitAction(formData: FormData) {
   }
 
   const role = await getCurrentUserRole();
-  if (!(role === "resident" || role === "admin")) {
+  if (role !== "resident") {
     redirect("/unauthorized");
   }
 
   const typeRaw = String(formData.get("type") ?? "visitor");
   if (!isVisitType(typeRaw)) {
-    throw new Error("Tipo de visita inválido.");
+    redirect("/visits/new?error=Tipo%20de%20visita%20inválido");
   }
 
   const type = typeRaw;
   const etaRaw = String(formData.get("eta_at") ?? "");
   const etaDate = new Date(etaRaw);
   if (!etaRaw || Number.isNaN(etaDate.getTime())) {
-    throw new Error("Hora estimada inválida.");
+    redirect("/visits/new?error=Hora%20estimada%20inválida");
   }
 
   const visitorName = String(formData.get("visitor_name") ?? "").trim();
@@ -70,24 +70,24 @@ export async function createVisitAction(formData: FormData) {
   const contactless = formData.get("contactless") === "on";
 
   if (type === "visitor" && !visitorName) {
-    throw new Error("El nombre del visitante es obligatorio.");
+    redirect("/visits/new?error=El%20nombre%20del%20visitante%20es%20obligatorio");
   }
   if (type === "delivery" && !dropoffLocationRaw) {
-    throw new Error("La ubicación de entrega es obligatoria para delivery.");
+    redirect("/visits/new?error=La%20ubicación%20de%20entrega%20es%20obligatoria");
   }
   if (type === "delivery" && !["gate", "house"].includes(dropoffLocationRaw)) {
-    throw new Error("Ubicación de entrega inválida.");
+    redirect("/visits/new?error=Ubicación%20de%20entrega%20inválida");
   }
   if (type === "delivery" && !deliveryType) {
-    throw new Error("El tipo de entrega es obligatorio.");
+    redirect("/visits/new?error=El%20tipo%20de%20entrega%20es%20obligatorio");
   }
   if (type === "delivery" && !instructions) {
-    throw new Error("Las instrucciones son obligatorias.");
+    redirect("/visits/new?error=Las%20instrucciones%20son%20obligatorias");
   }
 
   const houseId = await getCurrentHouseId(session.user.id);
   if (!houseId) {
-    throw new Error("No se encontró vivienda activa para este usuario.");
+    redirect("/visits/new?error=No%20se%20encontró%20vivienda%20activa");
   }
 
   const supabase = await createSupabaseServerClient();
@@ -107,15 +107,16 @@ export async function createVisitAction(formData: FormData) {
   });
 
   if (error) {
-    throw new Error(error.message);
+    redirect(`/visits/new?error=${encodeURIComponent(error.message)}`);
   }
 
   revalidatePath("/history");
   revalidatePath("/today");
-  redirect("/history?tab=active");
+  redirect("/history?tab=active&ok=created");
 }
 
 export async function updateVisitStatusAction(formData: FormData) {
+  const redirectTo = String(formData.get("redirect_to") ?? "/today");
   const session = await getCurrentSession();
   if (!session?.user) {
     redirect("/login");
@@ -129,7 +130,7 @@ export async function updateVisitStatusAction(formData: FormData) {
   const visitId = String(formData.get("visit_id") ?? "");
   const statusRaw = String(formData.get("next_status") ?? "");
   if (!visitId || !isVisitStatus(statusRaw)) {
-    throw new Error("Solicitud inválida.");
+    redirect(`${redirectTo}?error=Solicitud%20inválida`);
   }
 
   const supabase = await createSupabaseServerClient();
@@ -140,11 +141,11 @@ export async function updateVisitStatusAction(formData: FormData) {
     .single();
 
   if (visitError || !visit || !isVisitStatus(visit.status) || !isVisitType(visit.type)) {
-    throw new Error("Visita no encontrada.");
+    redirect(`${redirectTo}?error=Visita%20no%20encontrada`);
   }
 
   if (!canTransition(visit.status, statusRaw, visit.type)) {
-    throw new Error("Transición de estado inválida.");
+    redirect(`${redirectTo}?error=Transición%20de%20estado%20inválida`);
   }
 
   const payload: Record<string, string | null> = {
@@ -162,15 +163,17 @@ export async function updateVisitStatusAction(formData: FormData) {
 
   const { error } = await supabase.from("visits").update(payload).eq("id", visitId);
   if (error) {
-    throw new Error(error.message);
+    redirect(`${redirectTo}?error=${encodeURIComponent(error.message)}`);
   }
 
   revalidatePath("/today");
   revalidatePath("/history");
   revalidatePath(`/visits/${visitId}`);
+  redirect(`${redirectTo}?ok=updated`);
 }
 
 export async function cancelVisitAction(formData: FormData) {
+  const redirectTo = String(formData.get("redirect_to") ?? "/history?tab=active");
   const session = await getCurrentSession();
   if (!session?.user) {
     redirect("/login");
@@ -178,7 +181,7 @@ export async function cancelVisitAction(formData: FormData) {
 
   const visitId = String(formData.get("visit_id") ?? "");
   if (!visitId) {
-    throw new Error("Solicitud inválida.");
+    redirect(`${redirectTo}${redirectTo.includes("?") ? "&" : "?"}error=Solicitud%20inválida`);
   }
 
   const supabase = await createSupabaseServerClient();
@@ -189,7 +192,7 @@ export async function cancelVisitAction(formData: FormData) {
     .single();
 
   if (!visit || visit.resident_id !== session.user.id || visit.status !== "pending") {
-    throw new Error("No se puede cancelar esta visita.");
+    redirect(`${redirectTo}${redirectTo.includes("?") ? "&" : "?"}error=No%20se%20puede%20cancelar%20esta%20visita`);
   }
 
   const { error } = await supabase
@@ -201,9 +204,10 @@ export async function cancelVisitAction(formData: FormData) {
     .eq("id", visitId);
 
   if (error) {
-    throw new Error(error.message);
+    redirect(`${redirectTo}${redirectTo.includes("?") ? "&" : "?"}error=${encodeURIComponent(error.message)}`);
   }
 
   revalidatePath("/history");
   revalidatePath(`/visits/${visitId}`);
+  redirect(`${redirectTo}${redirectTo.includes("?") ? "&" : "?"}ok=cancelled`);
 }

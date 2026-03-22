@@ -372,17 +372,23 @@ on public.house_members
 for select
 using (user_id = auth.uid() or public.current_role() in ('guard', 'admin'));
 
--- Visits: read
-create policy if not exists "visits_resident_guard_admin_read"
+-- Visits
+drop policy if exists "visits_resident_guard_admin_read" on public.visits;
+drop policy if exists "visits_resident_insert" on public.visits;
+drop policy if exists "visits_resident_update_pending" on public.visits;
+drop policy if exists "visits_guard_admin_update" on public.visits;
+
+-- Read: resident only own records; guard/admin all.
+create policy "visits_resident_guard_admin_read"
 on public.visits
 for select
 using (
-  public.is_house_member(house_id)
+  resident_id = auth.uid()
   or public.current_role() in ('guard', 'admin')
 );
 
--- Visits: resident create in own house
-create policy if not exists "visits_resident_insert"
+-- Insert: resident in own active house.
+create policy "visits_resident_insert"
 on public.visits
 for insert
 with check (
@@ -391,8 +397,8 @@ with check (
   and public.is_house_member(house_id)
 );
 
--- Visits: resident update only pending/cancel
-create policy if not exists "visits_resident_update_pending"
+-- Resident updates only own pending visits; may keep pending or cancel.
+create policy "visits_resident_update_pending"
 on public.visits
 for update
 using (
@@ -405,12 +411,22 @@ with check (
   and status in ('pending', 'cancelled')
 );
 
--- Visits: guard/admin can update status operationally
-create policy if not exists "visits_guard_admin_update"
+-- Guard operational updates: no cancel status.
+create policy "visits_guard_update_operational"
 on public.visits
 for update
-using (public.current_role() in ('guard', 'admin'))
-with check (public.current_role() in ('guard', 'admin'));
+using (public.current_role() = 'guard')
+with check (
+  public.current_role() = 'guard'
+  and status in ('pending', 'arrived', 'authorized', 'rejected', 'delivered_gate', 'sent_to_house', 'expired')
+);
+
+-- Admin update access.
+create policy "visits_admin_update"
+on public.visits
+for update
+using (public.current_role() = 'admin')
+with check (public.current_role() = 'admin');
 
 -- Messages: residents only in own houses, guard/admin global
 create policy if not exists "messages_read"

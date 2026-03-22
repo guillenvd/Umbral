@@ -2,10 +2,12 @@ import Link from "next/link";
 import { getCurrentSession, getCurrentUserRole } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cancelVisitAction } from "@/app/(protected)/visits/actions";
-import { isTerminalStatus, normalizeVisitRecord, statusLabel, visitDisplayName, type VisitRecord } from "@/lib/visits";
+import { isTerminalStatus, normalizeVisitRecord, statusBadgeClass, statusLabel, visitDisplayName, type VisitRecord } from "@/lib/visits";
+import { RealtimeVisitsSync } from "@/components/visits/realtime-sync";
+import { ActionSubmit } from "@/components/visits/action-submit";
 
 type HistoryPageProps = {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; ok?: string; error?: string }>;
 };
 
 export default async function HistoryPage({ searchParams }: HistoryPageProps) {
@@ -34,6 +36,9 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
   return (
     <section className="space-y-4">
       <h1 className="text-xl font-semibold">Historial</h1>
+      <RealtimeVisitsSync />
+      {params.ok ? <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Acción aplicada correctamente.</p> : null}
+      {params.error ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{params.error}</p> : null}
       <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white p-1 shadow-card">
         <Link href="/history?tab=active" className={`rounded-xl px-3 py-2 text-center text-sm font-medium ${tab === "active" ? "bg-brand text-white" : "text-slate-700"}`}>
           Activas
@@ -51,7 +56,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
             <article key={visit.id} className="space-y-2 rounded-2xl bg-white p-4 shadow-card">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold">{visit.type === "delivery" ? "📦 Repartidor" : "👤 Visita"}</p>
-                <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">{statusLabel(visit.status)}</span>
+                <span className={`rounded-full px-2 py-1 text-xs font-medium ${statusBadgeClass(visit.status)}`}>{statusLabel(visit.status)}</span>
               </div>
               <p className="text-base font-medium">{visitDisplayName(visit)}</p>
               <p className="text-sm text-slate-600">
@@ -64,9 +69,13 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                 {role === "resident" && visit.status === "pending" ? (
                   <form action={cancelVisitAction}>
                     <input type="hidden" name="visit_id" value={visit.id} />
-                    <button type="submit" className="rounded-xl bg-rose-600 px-3 py-2 text-sm font-medium text-white">
+                    <input type="hidden" name="redirect_to" value="/history?tab=active" />
+                    <ActionSubmit
+                      className="rounded-xl bg-rose-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-70"
+                      confirmMessage="¿Seguro que quieres cancelar esta visita?"
+                    >
                       Cancelar
-                    </button>
+                    </ActionSubmit>
                   </form>
                 ) : null}
               </div>

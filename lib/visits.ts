@@ -68,6 +68,20 @@ export function statusLabel(status: VisitStatus) {
   return labels[status];
 }
 
+export function statusBadgeClass(status: VisitStatus) {
+  const classes: Record<VisitStatus, string> = {
+    pending: "bg-amber-100 text-amber-800",
+    arrived: "bg-sky-100 text-sky-800",
+    authorized: "bg-emerald-100 text-emerald-800",
+    rejected: "bg-rose-100 text-rose-800",
+    cancelled: "bg-slate-200 text-slate-700",
+    expired: "bg-slate-200 text-slate-700",
+    delivered_gate: "bg-indigo-100 text-indigo-800",
+    sent_to_house: "bg-indigo-100 text-indigo-800"
+  };
+  return classes[status];
+}
+
 export function normalizeVisitRecord(raw: RawVisitRecord): VisitRecord {
   const house = Array.isArray(raw.house) ? raw.house[0] : raw.house;
   return {

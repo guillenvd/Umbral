@@ -29,6 +29,7 @@ Base ejecutable de la **Fase 1** para Umbral: app mobile-first con Next.js App R
   - Listado en cards para vecino/guardia (`/history`, `/today`)
   - Detalle por visita con acciones (`/visits/[id]`)
   - Transiciones de estado controladas en backend
+- Realtime operativo en vistas de visitas (`/today`, `/history`, `/visits/[id]`) usando Supabase Realtime + `router.refresh()`
 
 ## Estructura
 
@@ -90,7 +91,7 @@ npm run dev
 Reglas implementadas en `lib/auth/roles.ts` + `middleware.ts`:
 
 - `/today` → `guard`, `admin`
-- `/visits/new` → `resident`, `admin`
+- `/visits/new` → `resident`
 - `/messages` → `resident`, `guard`, `admin`
 - `/history` → `resident`, `guard`, `admin`
 - `/announcements` → `resident`, `guard`, `committee`, `admin`
@@ -99,4 +100,33 @@ Si un usuario autenticado no tiene permiso, se redirige a `/unauthorized`.
 
 ## Nota sobre esta fase
 - Esta fase se enfoca en **VISITAS** end-to-end (visitor + delivery).
-- Aún no incluye realtime, chat completo ni comunicados.
+- Incluye realtime para visitas.
+- Aún no incluye chat completo ni comunicados.
+
+## Realtime de visitas (Fase 3)
+- `components/visits/realtime-sync.tsx` crea una suscripción a `public.visits` (`postgres_changes`).
+- Al recibir inserciones/updates/deletes, hace `router.refresh()` con un debounce corto para evitar flicker en móvil.
+- Se usa en:
+  - `/today` (operación de caseta en vivo)
+  - `/history` (lista del vecino/guardia en vivo)
+  - `/visits/[id]` (detalle en vivo por `id`)
+
+## Seguridad / RLS de visitas (Fase 3)
+Policies relevantes en `supabase/schema.sql`:
+- `visits_resident_guard_admin_read`
+  - Residente: solo sus propias visitas (`resident_id = auth.uid()`).
+  - Guardia/Admin: lectura global operativa.
+- `visits_resident_insert`
+  - Residente crea visitas solo para sí mismo y en vivienda activa.
+- `visits_resident_update_pending`
+  - Residente solo puede mutar visitas propias en `pending` y dejar `pending` o `cancelled`.
+- `visits_guard_update_operational`
+  - Guardia puede operar estados operativos, sin permiso para `cancelled`.
+- `visits_admin_update`
+  - Admin mantiene capacidad de supervisión/ajuste.
+
+Transiciones implementadas en backend (`app/(protected)/visits/actions.ts`):
+- Visitor: `pending -> arrived -> authorized/rejected`
+- Delivery: `pending -> arrived -> authorized/rejected/delivered_gate/sent_to_house`
+- Cancelación residente: `pending -> cancelled`
+- `expired` queda documentado como siguiente paso para automatizar por job/cron.
