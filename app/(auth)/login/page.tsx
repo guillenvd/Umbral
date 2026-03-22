@@ -6,12 +6,29 @@ type LoginPageProps = {
   searchParams: Promise<{ next?: string; error?: string }>;
 };
 
+const DEFAULT_SAFE_NEXT = "/today";
+
+function sanitizeNextPath(value: string | undefined) {
+  if (!value) return DEFAULT_SAFE_NEXT;
+
+  const candidate = value.trim();
+  const lower = candidate.toLowerCase();
+
+  if (!candidate.startsWith("/")) return DEFAULT_SAFE_NEXT;
+  if (candidate.startsWith("//")) return DEFAULT_SAFE_NEXT;
+  if (candidate.includes("://")) return DEFAULT_SAFE_NEXT;
+  if (candidate.includes("\\")) return DEFAULT_SAFE_NEXT;
+  if (lower.startsWith("javascript:") || lower.startsWith("http:") || lower.startsWith("https:")) return DEFAULT_SAFE_NEXT;
+
+  return candidate;
+}
+
 async function signIn(formData: FormData) {
   "use server";
 
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
-  const nextPath = String(formData.get("next") ?? "/today");
+  const nextPath = sanitizeNextPath(String(formData.get("next") ?? DEFAULT_SAFE_NEXT));
 
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -25,6 +42,7 @@ async function signIn(formData: FormData) {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
+  const safeNext = sanitizeNextPath(params.next);
 
   return (
     <main className="min-h-dvh px-4 py-8">
@@ -33,7 +51,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <p className="mt-1 text-sm text-slate-600">Acceso para residentes, caseta y administración.</p>
 
         <form action={signIn} className="mt-6 space-y-3">
-          <input type="hidden" name="next" value={params.next ?? "/today"} />
+          <input type="hidden" name="next" value={safeNext} />
           <label className="block text-sm">
             <span className="mb-1 block text-slate-700">Email</span>
             <input

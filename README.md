@@ -125,6 +125,13 @@ Policies relevantes en `supabase/schema.sql`:
 - `visits_admin_update`
   - Admin mantiene capacidad de supervisión/ajuste.
 
+Decisión de producto implementada:
+- **Quién crea visitas:** solo `resident`.
+- Alineación completa:
+  - UI/guards (`/visits/new`) solo para `resident`.
+  - `createVisitAction` rechaza cualquier rol distinto de `resident`.
+  - RLS `visits_resident_insert` permite insert únicamente a `resident` dueño de la visita.
+
 Transiciones implementadas en backend (`app/(protected)/visits/actions.ts`):
 - Visitor: `pending -> arrived -> authorized/rejected`
 - Delivery: `pending -> arrived -> authorized/rejected/delivered_gate/sent_to_house`
