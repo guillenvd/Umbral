@@ -36,7 +36,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
   return (
     <section className="space-y-4">
       <h1 className="text-xl font-semibold">Historial</h1>
-      <RealtimeVisitsSync />
+      <RealtimeVisitsSync channelName="visits-history" />
       {params.ok ? <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Acción aplicada correctamente.</p> : null}
       {params.error ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{params.error}</p> : null}
       <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white p-1 shadow-card">

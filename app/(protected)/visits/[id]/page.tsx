@@ -35,7 +35,7 @@ export default async function VisitDetailPage({ params, searchParams }: VisitDet
   return (
     <section className="space-y-4 pb-24">
       <h1 className="text-xl font-semibold">Detalle de visita</h1>
-      <RealtimeVisitsSync visitId={id} />
+      <RealtimeVisitsSync visitId={id} channelName="visits-detail" />
       {query.ok ? <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Estado actualizado.</p> : null}
       {query.error ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{query.error}</p> : null}
 

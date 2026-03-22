@@ -82,7 +82,7 @@ export default async function TodayPage({ searchParams }: TodayPageProps) {
   return (
     <section className="space-y-4">
       <h1 className="text-xl font-semibold">Guardia · Hoy</h1>
-      <RealtimeVisitsSync />
+      <RealtimeVisitsSync channelName="visits-today" />
       {params.ok ? <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Estado actualizado.</p> : null}
       {params.error ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{params.error}</p> : null}
       <p className="text-sm text-slate-600">Visitas del día separadas por próximas y en curso.</p>

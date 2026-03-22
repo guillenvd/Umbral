@@ -6,16 +6,17 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type RealtimeVisitsSyncProps = {
   visitId?: string;
+  channelName?: string;
 };
 
-export function RealtimeVisitsSync({ visitId }: RealtimeVisitsSyncProps) {
+export function RealtimeVisitsSync({ visitId, channelName = "visits" }: RealtimeVisitsSyncProps) {
   const router = useRouter();
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
-    const channel = supabase.channel(`visits-sync-${visitId ?? "all"}`);
+    const channel = supabase.channel(`${channelName}-sync-${visitId ?? "all"}`);
 
     channel.on(
       "postgres_changes",
@@ -39,7 +40,11 @@ export function RealtimeVisitsSync({ visitId }: RealtimeVisitsSyncProps) {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       supabase.removeChannel(channel);
     };
-  }, [router, startTransition, visitId]);
+  }, [channelName, router, startTransition, visitId]);
 
-  return null;
+  return (
+    <p className="text-xs text-slate-500" aria-live="polite">
+      {pending ? "Actualizando en vivo…" : "En vivo"}
+    </p>
+  );
 }

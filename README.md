@@ -110,6 +110,11 @@ Si un usuario autenticado no tiene permiso, se redirige a `/unauthorized`.
   - `/today` (operación de caseta en vivo)
   - `/history` (lista del vecino/guardia en vivo)
   - `/visits/[id]` (detalle en vivo por `id`)
+- Canales por vista:
+  - `/today` → `visits-today-sync-all`
+  - `/history` → `visits-history-sync-all`
+  - `/visits/[id]` → `visits-detail-sync-<id>`
+- Nota técnica completa: `docs/REALTIME_VISITS.md`.
 
 ## Seguridad / RLS de visitas (Fase 3)
 Policies relevantes en `supabase/schema.sql`:
