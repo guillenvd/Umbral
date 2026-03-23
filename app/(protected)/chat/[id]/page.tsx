@@ -5,6 +5,7 @@ import { RealtimeChatSync } from "@/components/chat/realtime-chat-sync";
 import { ChatThread } from "@/components/chat/chat-thread";
 import { ActionSubmit } from "@/components/visits/action-submit";
 import { getCurrentSession, getCurrentUserRole } from "@/lib/auth/session";
+import { logServerError } from "@/lib/logger";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getPrimaryGuardUserId } from "@/lib/chat";
 
@@ -32,14 +33,17 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   const guardId = role === "resident" ? await getPrimaryGuardUserId() : null;
   if (role === "resident" && guardId && guardId !== peer.id) notFound();
 
-  const { data: messages } = await supabase
+  const { data: messages, error: messagesError } = await supabase
     .from("messages")
     .select("id,from_user,to_user,visit_id,content,created_at")
     .or(`and(from_user.eq.${session.user.id},to_user.eq.${peer.id}),and(from_user.eq.${peer.id},to_user.eq.${session.user.id})`)
     .order("created_at", { ascending: true })
     .limit(300);
+  if (messagesError) {
+    logServerError("chatPage.fetchMessages", messagesError, { currentUserId: session.user.id, peerId: peer.id });
+  }
 
-  await supabase.from("conversation_reads").upsert(
+  const { error: readMarkError } = await supabase.from("conversation_reads").upsert(
     {
       user_id: session.user.id,
       peer_id: peer.id,
@@ -47,6 +51,9 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     },
     { onConflict: "user_id,peer_id" }
   );
+  if (readMarkError) {
+    logServerError("chatPage.markRead", readMarkError, { currentUserId: session.user.id, peerId: peer.id });
+  }
 
   const visitId = query.visit_id?.trim() || "";
 
@@ -60,6 +67,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
 
       {query.ok ? <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Mensaje enviado.</p> : null}
       {query.error ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{query.error}</p> : null}
+      {messagesError ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">No se pudo cargar el historial del chat.</p> : null}
 
       <ChatThread messages={messages ?? []} currentUserId={session.user.id} />
 
@@ -72,6 +80,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
             name="content"
             required
             rows={2}
+            aria-label="Mensaje"
             className="min-h-11 flex-1 resize-none rounded-xl border border-slate-300 px-3 py-2 text-sm"
             placeholder="Escribe un mensaje..."
           />

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentSession, getCurrentUserRole } from "@/lib/auth/session";
+import { logServerError } from "@/lib/logger";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function sendMessageAction(formData: FormData) {
@@ -58,6 +59,7 @@ export async function sendMessageAction(formData: FormData) {
   });
 
   if (error) {
+    logServerError("sendMessageAction.insert", error, { fromUser: session.user.id, toUser, visitId });
     redirect(`${redirectTo}${redirectTo.includes("?") ? "&" : "?"}error=${encodeURIComponent(error.message)}`);
   }
 

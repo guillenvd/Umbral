@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentSession, getCurrentUserRole } from "@/lib/auth/session";
+import { logServerError } from "@/lib/logger";
 import { expireStaleVisits, isVisitStatus, isVisitType, type VisitStatus, type VisitType } from "@/lib/visits";
 
 async function getCurrentHouseId(userId: string) {
@@ -107,6 +108,7 @@ export async function createVisitAction(formData: FormData) {
   });
 
   if (error) {
+    logServerError("createVisitAction.insert", error, { userId: session.user.id, type });
     redirect(`/visits/new?error=${encodeURIComponent(error.message)}`);
   }
 
@@ -142,6 +144,7 @@ export async function updateVisitStatusAction(formData: FormData) {
     .single();
 
   if (visitError || !visit || !isVisitStatus(visit.status) || !isVisitType(visit.type)) {
+    if (visitError) logServerError("updateVisitStatusAction.fetchVisit", visitError, { visitId });
     redirect(`${redirectTo}?error=Visita%20no%20encontrada`);
   }
 
@@ -170,6 +173,7 @@ export async function updateVisitStatusAction(formData: FormData) {
     .select("id")
     .limit(1);
   if (error) {
+    logServerError("updateVisitStatusAction.update", error, { visitId, statusRaw });
     redirect(`${redirectTo}?error=${encodeURIComponent(error.message)}`);
   }
   if (!updated?.length) {
@@ -219,6 +223,7 @@ export async function cancelVisitAction(formData: FormData) {
     .limit(1);
 
   if (error) {
+    logServerError("cancelVisitAction.update", error, { visitId, userId: session.user.id });
     redirect(`${redirectTo}${redirectTo.includes("?") ? "&" : "?"}error=${encodeURIComponent(error.message)}`);
   }
   if (!updated?.length) {

@@ -43,8 +43,10 @@ export function BottomNav({ role, unreadMessages = 0 }: { role: AppRole; unreadM
             <li key={item.href}>
               <Link
                 href={item.href}
+                aria-current={isActive ? "page" : undefined}
+                aria-label={item.label}
                 className={cn(
-                  "flex min-h-12 items-center justify-center rounded-xl text-xs font-medium",
+                  "flex min-h-12 items-center justify-center rounded-xl text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2",
                   isActive ? "bg-teal-50 text-brand" : "text-slate-600"
                 )}
               >

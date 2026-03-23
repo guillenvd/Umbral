@@ -3,9 +3,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentSession, getCurrentUserRole } from "@/lib/auth/session";
 import { RealtimeChatSync } from "@/components/chat/realtime-chat-sync";
 import { buildUnreadMap } from "@/lib/chat";
+import { logServerError } from "@/lib/logger";
 
 type MessagesPageProps = {
-  searchParams: Promise<{ ok?: string; error?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; page?: string }>;
 };
 
 type MessageRow = {
@@ -18,22 +19,31 @@ type MessageRow = {
 
 export default async function MessagesPage({ searchParams }: MessagesPageProps) {
   const params = await searchParams;
+  const page = Number(params.page ?? "1");
+  const currentPage = Number.isFinite(page) && page > 0 ? page : 1;
+  const PAGE_SIZE = 80;
   const session = await getCurrentSession();
   const role = await getCurrentUserRole();
   const supabase = await createSupabaseServerClient();
 
   if (!session?.user) return null;
 
-  const { data: messageRows } = await supabase
+  const { data: messageRows, error: messagesError } = await supabase
     .from("messages")
     .select("id,from_user,to_user,content,created_at")
     .or(`from_user.eq.${session.user.id},to_user.eq.${session.user.id}`)
     .order("created_at", { ascending: false })
-    .limit(200);
-  const { data: readRows } = await supabase
+    .range((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE - 1);
+  if (messagesError) {
+    logServerError("messagesPage.fetchMessages", messagesError, { userId: session.user.id, currentPage });
+  }
+  const { data: readRows, error: readError } = await supabase
     .from("conversation_reads")
     .select("peer_id,last_read_at")
     .eq("user_id", session.user.id);
+  if (readError) {
+    logServerError("messagesPage.fetchReads", readError, { userId: session.user.id });
+  }
 
   const peerIds = new Set<string>();
   (messageRows ?? []).forEach((message) => {
@@ -64,6 +74,7 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
       <RealtimeChatSync channelName="messages-inbox" />
       {params.ok ? <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Mensaje enviado.</p> : null}
       {params.error ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{params.error}</p> : null}
+      {messagesError ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">No pudimos cargar tus mensajes.</p> : null}
 
       <div className="space-y-3">
         {Array.from(conversations.entries()).map(([peerId, message]) => {
@@ -93,6 +104,20 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
         {conversations.size === 0 ? (
           <article className="rounded-2xl bg-white p-4 text-sm text-slate-600 shadow-card">Aún no hay conversaciones.</article>
         ) : null}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Link
+          href={`/messages?page=${Math.max(1, currentPage - 1)}`}
+          className={`rounded-xl border border-slate-300 px-3 py-2 text-center text-sm font-medium ${currentPage <= 1 ? "pointer-events-none opacity-40" : ""}`}
+        >
+          Anterior
+        </Link>
+        <Link
+          href={`/messages?page=${currentPage + 1}`}
+          className={`rounded-xl border border-slate-300 px-3 py-2 text-center text-sm font-medium ${(messageRows ?? []).length < PAGE_SIZE ? "pointer-events-none opacity-40" : ""}`}
+        >
+          Siguiente
+        </Link>
       </div>
     </section>
   );

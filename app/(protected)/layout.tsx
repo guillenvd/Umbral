@@ -60,7 +60,7 @@ export default async function ProtectedLayout({ children }: { children: ReactNod
         </div>
       </header>
 
-      <main className="px-4 pb-24 pt-4">{children}</main>
+      <main id="main-content" className="px-4 pb-24 pt-4">{children}</main>
       <BottomNav role={role} unreadMessages={unreadMessages} />
     </div>
   );

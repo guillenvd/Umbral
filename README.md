@@ -192,6 +192,11 @@ Transiciones implementadas en backend (`app/(protected)/visits/actions.ts`):
 - Íconos en `app/icon.tsx` y `app/apple-icon.tsx`.
 - Service worker mínimo en `public/sw.js`, registrado desde `app/providers.tsx`.
 - **No** se implementan push notifications en esta fase (queda como backlog de largo plazo).
+- Estrategia offline/caché:
+  - navegación: `network-first` con fallback a `public/offline.html`.
+  - assets estáticos (css/js/imágenes): `stale-while-revalidate` con caché runtime.
+  - versionado del SW con `SW_VERSION`; limpieza automática de caches viejas en `activate`.
+  - actualización: si hay SW nuevo, se envía `SKIP_WAITING` para activar más rápido.
 
 ## Hardening operativo y UX polish
 - Expiración automática de visitas `pending`:
@@ -205,3 +210,28 @@ Transiciones implementadas en backend (`app/(protected)/visits/actions.ts`):
   - contador total en bottom nav para residentes/guardia.
 - Doble submit/acciones duplicadas:
   - botón `ActionSubmit` ahora bloquea envío múltiple de forma local además de `pending`.
+- Accesibilidad:
+  - foco visible en botones y navegación inferior.
+  - `aria-current` en item activo de bottom nav.
+  - skip-link global para saltar al contenido principal.
+  - tamaños táctiles mínimos preservados (`min-h-11` / `min-h-12`).
+- Performance:
+  - paginación básica en `/history` y `/messages` para reducir carga inicial en listas grandes.
+  - headers de caché para assets estáticos y no-cache explícito para `sw.js`.
+
+## Observabilidad / debugging
+- Logging estructurado en servidor:
+  - helper `lib/logger.ts` (`logServerError`) para errores en server actions y rutas críticas.
+  - puntos instrumentados: visitas (`create/update/cancel`), chat send/mark-read y consultas críticas de today/history/messages/detail.
+- Manejo de errores de usuario:
+  - banners en UI para degradación controlada cuando una consulta falla.
+  - `app/(protected)/error.tsx` y `app/(protected)/loading.tsx` para estados globales de ruta.
+
+## Checklist “pilot-ready”
+- [x] PWA instalable con manifest + iconos + service worker versionado.
+- [x] Fallback offline básico para navegación sin red.
+- [x] Reglas operativas de visitas con expiración y bloqueo de duplicados.
+- [x] Auditoría visible en detalle de visita.
+- [x] Accesibilidad base (focus visible, skip link, targets táctiles, estados de navegación).
+- [x] Observabilidad mínima con logging estructurado y errores visibles.
+- [x] Paginación básica en listas grandes para mejor rendimiento móvil.

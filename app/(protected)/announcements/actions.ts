@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentSession, getCurrentUserRole } from "@/lib/auth/session";
+import { logServerError } from "@/lib/logger";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const VALID_PRIORITIES = ["normal", "important", "urgent"] as const;
@@ -50,6 +51,7 @@ export async function createAnnouncementAction(formData: FormData) {
   });
 
   if (error) {
+    logServerError("createAnnouncementAction.insert", error, { createdBy: session.user.id, priority: priorityRaw });
     redirect(`/announcements/new?error=${encodeURIComponent(error.message)}`);
   }
 

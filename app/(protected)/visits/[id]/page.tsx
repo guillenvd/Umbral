@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getCurrentSession, getCurrentUserRole } from "@/lib/auth/session";
+import { logServerError } from "@/lib/logger";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { expireStaleVisits, normalizeVisitRecord, statusBadgeClass, statusLabel, visitDisplayName, type VisitRecord } from "@/lib/visits";
 import { cancelVisitAction, updateVisitStatusAction } from "@/app/(protected)/visits/actions";
@@ -20,24 +21,30 @@ export default async function VisitDetailPage({ params, searchParams }: VisitDet
   const supabase = await createSupabaseServerClient();
   await expireStaleVisits(supabase);
 
-  const { data } = await supabase
+  const { data, error: visitError } = await supabase
     .from("visits")
     .select("id,resident_id,house_id,type,visitor_name,eta_at,status,note,delivery_company,delivery_type,dropoff_location,instructions,contactless,created_at,house:houses(code)")
     .eq("id", id)
     .maybeSingle();
 
+  if (visitError) {
+    logServerError("visitDetail.fetchVisit", visitError, { visitId: id });
+  }
   if (!data) {
     notFound();
   }
 
   const visit = normalizeVisitRecord(data as unknown as VisitRecord);
-  const { data: auditLogs } = await supabase
+  const { data: auditLogs, error: auditError } = await supabase
     .from("audit_logs")
     .select("id,action,created_at,meta")
     .eq("entity", "visits")
     .eq("entity_id", id)
     .order("created_at", { ascending: false })
     .limit(8);
+  if (auditError) {
+    logServerError("visitDetail.fetchAudit", auditError, { visitId: id });
+  }
   const canGuard = role === "guard" || role === "admin";
   const canCancel = role === "resident" && session?.user?.id === visit.resident_id && visit.status === "pending";
   const chatTarget = role === "resident" ? await getPrimaryGuardUserId() : role === "guard" ? visit.resident_id : null;
@@ -48,6 +55,7 @@ export default async function VisitDetailPage({ params, searchParams }: VisitDet
       <RealtimeVisitsSync visitId={id} channelName="visits-detail" />
       {query.ok ? <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Estado actualizado.</p> : null}
       {query.error ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{query.error}</p> : null}
+      {auditError ? <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-700">Auditoría temporalmente no disponible.</p> : null}
 
       <article className="space-y-3 rounded-2xl bg-white p-4 shadow-card">
         <div className="flex items-center justify-between">

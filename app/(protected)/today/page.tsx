@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { logServerError } from "@/lib/logger";
 import { expireStaleVisits, normalizeVisitRecord, statusBadgeClass, statusLabel, visitDisplayName, type VisitRecord } from "@/lib/visits";
 import { updateVisitStatusAction } from "@/app/(protected)/visits/actions";
 import { RealtimeVisitsSync } from "@/components/visits/realtime-sync";
@@ -18,12 +19,16 @@ export default async function TodayPage({ searchParams }: TodayPageProps) {
   const end = new Date(start);
   end.setDate(end.getDate() + 1);
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("visits")
     .select("id,resident_id,house_id,type,visitor_name,eta_at,status,note,delivery_company,delivery_type,dropoff_location,instructions,contactless,created_at,house:houses(code)")
     .gte("eta_at", start.toISOString())
     .lt("eta_at", end.toISOString())
     .order("eta_at", { ascending: true });
+
+  if (error) {
+    logServerError("todayPage.fetchVisits", error);
+  }
 
   const visits = (data ?? []).map((visit) => normalizeVisitRecord(visit as unknown as VisitRecord));
   const upcoming = visits.filter((visit) => visit.status === "pending");
@@ -87,6 +92,7 @@ export default async function TodayPage({ searchParams }: TodayPageProps) {
       <RealtimeVisitsSync channelName="visits-today" />
       {params.ok ? <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Estado actualizado.</p> : null}
       {params.error ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{params.error}</p> : null}
+      {error ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">No se pudo cargar el tablero en este momento.</p> : null}
       <div className="grid grid-cols-3 gap-2">
         <article className="rounded-2xl bg-white p-3 text-center shadow-card">
           <p className="text-xs text-slate-500">Totales</p>

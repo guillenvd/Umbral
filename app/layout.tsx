@@ -17,7 +17,15 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es">
-      <body><Providers>{children}</Providers></body>
+      <body>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[100] focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:font-medium"
+        >
+          Saltar al contenido principal
+        </a>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

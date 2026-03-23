@@ -20,6 +20,8 @@ export function ActionSubmit({ children, pendingLabel = "Procesando...", classNa
       type="submit"
       className={className}
       disabled={disabled}
+      aria-disabled={disabled}
+      aria-busy={disabled}
       onClick={(event) => {
         if (confirmMessage && !window.confirm(confirmMessage)) {
           event.preventDefault();
