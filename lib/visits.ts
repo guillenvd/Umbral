@@ -89,3 +89,12 @@ export function normalizeVisitRecord(raw: RawVisitRecord): VisitRecord {
     house: house ?? null
   };
 }
+
+export async function expireStaleVisits(supabase: any) {
+  const now = new Date().toISOString();
+  await supabase
+    .from("visits")
+    .update({ status: "expired" })
+    .eq("status", "pending")
+    .lt("expires_at", now);
+}

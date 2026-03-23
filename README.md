@@ -38,6 +38,15 @@ Base ejecutable de la **Fase 1** para Umbral: app mobile-first con Next.js App R
   - feed en `/announcements`
   - creación en `/announcements/new`
   - realtime para nuevos comunicados
+- PWA base instalable:
+  - `manifest.webmanifest`
+  - íconos generados (`/icon`, `/apple-icon`)
+  - service worker mínimo (`/sw.js`) sin push notifications
+- Hardening operativo:
+  - expiración automática de visitas `pending` al cargar vistas operativas
+  - auditoría visible en detalle de visita
+  - unread badges en mensajes
+  - prevención adicional de doble submit
 
 ## Estructura
 
@@ -115,6 +124,7 @@ Si un usuario autenticado no tiene permiso, se redirige a `/unauthorized`.
 - Realtime de visitas.
 - Chat 1:1 residente ↔ caseta con realtime.
 - Broadcast de comunicados con creación por comité/admin y feed en vivo.
+- Base PWA instalable y hardening operativo de flujos críticos.
 
 ## Realtime de visitas (Fase 3)
 - `components/visits/realtime-sync.tsx` crea una suscripción a `public.visits` (`postgres_changes`).
@@ -176,3 +186,22 @@ Transiciones implementadas en backend (`app/(protected)/visits/actions.ts`):
 - Realtime:
   - `/announcements` usa canal `announcements-sync` y refresca feed en vivo.
 - Nota técnica completa: `docs/REALTIME_ANNOUNCEMENTS.md`.
+
+## PWA installable (sin push notifications)
+- Manifest en `app/manifest.ts`.
+- Íconos en `app/icon.tsx` y `app/apple-icon.tsx`.
+- Service worker mínimo en `public/sw.js`, registrado desde `app/providers.tsx`.
+- **No** se implementan push notifications en esta fase (queda como backlog de largo plazo).
+
+## Hardening operativo y UX polish
+- Expiración automática de visitas `pending`:
+  - helper `expireStaleVisits` en `lib/visits.ts`
+  - ejecutado en `/today`, `/history`, `/visits/[id]` y antes de mutaciones clave.
+- Auditoría visible:
+  - `/visits/[id]` muestra eventos recientes de `audit_logs` para la visita.
+- Unread chat badges:
+  - tabla `conversation_reads` + RLS para tracking por conversación.
+  - badge por conversación en `/messages`.
+  - contador total en bottom nav para residentes/guardia.
+- Doble submit/acciones duplicadas:
+  - botón `ActionSubmit` ahora bloquea envío múltiple de forma local además de `pending`.

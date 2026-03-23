@@ -30,7 +30,7 @@ const navByRole: Record<AppRole, Array<{ href: Route; label: string }>> = {
   ]
 };
 
-export function BottomNav({ role }: { role: AppRole }) {
+export function BottomNav({ role, unreadMessages = 0 }: { role: AppRole; unreadMessages?: number }) {
   const pathname = usePathname();
   const items = navByRole[role];
 
@@ -48,7 +48,14 @@ export function BottomNav({ role }: { role: AppRole }) {
                   isActive ? "bg-teal-50 text-brand" : "text-slate-600"
                 )}
               >
-                {item.label}
+                <span className="relative">
+                  {item.label}
+                  {item.href === "/messages" && unreadMessages > 0 ? (
+                    <span className="absolute -right-4 -top-2 rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                      {unreadMessages > 99 ? "99+" : unreadMessages}
+                    </span>
+                  ) : null}
+                </span>
               </Link>
             </li>
           );

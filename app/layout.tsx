@@ -5,7 +5,13 @@ import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "Umbral",
-  description: "Control de visitas residencial"
+  description: "Control de visitas residencial",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Umbral",
+    statusBarStyle: "default"
+  }
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

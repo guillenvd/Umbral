@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentSession, getCurrentUserRole } from "@/lib/auth/session";
 import { RealtimeChatSync } from "@/components/chat/realtime-chat-sync";
+import { buildUnreadMap } from "@/lib/chat";
 
 type MessagesPageProps = {
   searchParams: Promise<{ ok?: string; error?: string }>;
@@ -29,6 +30,10 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
     .or(`from_user.eq.${session.user.id},to_user.eq.${session.user.id}`)
     .order("created_at", { ascending: false })
     .limit(200);
+  const { data: readRows } = await supabase
+    .from("conversation_reads")
+    .select("peer_id,last_read_at")
+    .eq("user_id", session.user.id);
 
   const peerIds = new Set<string>();
   (messageRows ?? []).forEach((message) => {
@@ -44,6 +49,7 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
 
   const peersMap = new Map((peers ?? []).map((peer) => [peer.id, peer]));
   const conversations = new Map<string, MessageRow>();
+  const unreadMap = buildUnreadMap(session.user.id, (messageRows ?? []) as MessageRow[], readRows ?? []);
 
   (messageRows ?? []).forEach((message) => {
     const peerId = message.from_user === session.user.id ? message.to_user : message.from_user;
@@ -69,7 +75,14 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
           return (
             <Link key={peerId} href={`/chat/${peerId}`} className="block rounded-2xl bg-white p-4 shadow-card">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold">{peer.full_name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold">{peer.full_name}</p>
+                  {(unreadMap.get(peerId) ?? 0) > 0 ? (
+                    <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700">
+                      {unreadMap.get(peerId)}
+                    </span>
+                  ) : null}
+                </div>
                 <p className="text-xs text-slate-500">{new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
               </div>
               <p className="mt-1 line-clamp-2 text-sm text-slate-600">{message.content}</p>

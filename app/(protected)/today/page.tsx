@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { normalizeVisitRecord, statusBadgeClass, statusLabel, visitDisplayName, type VisitRecord } from "@/lib/visits";
+import { expireStaleVisits, normalizeVisitRecord, statusBadgeClass, statusLabel, visitDisplayName, type VisitRecord } from "@/lib/visits";
 import { updateVisitStatusAction } from "@/app/(protected)/visits/actions";
 import { RealtimeVisitsSync } from "@/components/visits/realtime-sync";
 import { ActionSubmit } from "@/components/visits/action-submit";
@@ -12,6 +12,7 @@ type TodayPageProps = {
 export default async function TodayPage({ searchParams }: TodayPageProps) {
   const params = await searchParams;
   const supabase = await createSupabaseServerClient();
+  await expireStaleVisits(supabase);
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const end = new Date(start);
@@ -27,6 +28,7 @@ export default async function TodayPage({ searchParams }: TodayPageProps) {
   const visits = (data ?? []).map((visit) => normalizeVisitRecord(visit as unknown as VisitRecord));
   const upcoming = visits.filter((visit) => visit.status === "pending");
   const inProgress = visits.filter((visit) => visit.status === "arrived");
+  const total = visits.length;
 
   const renderActions = (visit: VisitRecord) => (
     <div className="flex flex-wrap gap-2 pt-1">
@@ -85,7 +87,20 @@ export default async function TodayPage({ searchParams }: TodayPageProps) {
       <RealtimeVisitsSync channelName="visits-today" />
       {params.ok ? <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Estado actualizado.</p> : null}
       {params.error ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{params.error}</p> : null}
-      <p className="text-sm text-slate-600">Visitas del día separadas por próximas y en curso.</p>
+      <div className="grid grid-cols-3 gap-2">
+        <article className="rounded-2xl bg-white p-3 text-center shadow-card">
+          <p className="text-xs text-slate-500">Totales</p>
+          <p className="text-lg font-semibold">{total}</p>
+        </article>
+        <article className="rounded-2xl bg-white p-3 text-center shadow-card">
+          <p className="text-xs text-slate-500">Próximas</p>
+          <p className="text-lg font-semibold">{upcoming.length}</p>
+        </article>
+        <article className="rounded-2xl bg-white p-3 text-center shadow-card">
+          <p className="text-xs text-slate-500">En curso</p>
+          <p className="text-lg font-semibold">{inProgress.length}</p>
+        </article>
+      </div>
 
       <section className="space-y-2">
         <h2 className="px-1 text-sm font-semibold text-slate-700">Próximas</h2>

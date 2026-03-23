@@ -39,6 +39,15 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     .order("created_at", { ascending: true })
     .limit(300);
 
+  await supabase.from("conversation_reads").upsert(
+    {
+      user_id: session.user.id,
+      peer_id: peer.id,
+      last_read_at: new Date().toISOString()
+    },
+    { onConflict: "user_id,peer_id" }
+  );
+
   const visitId = query.visit_id?.trim() || "";
 
   return (

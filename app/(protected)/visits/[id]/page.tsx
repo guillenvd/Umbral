@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getCurrentSession, getCurrentUserRole } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { normalizeVisitRecord, statusBadgeClass, statusLabel, visitDisplayName, type VisitRecord } from "@/lib/visits";
+import { expireStaleVisits, normalizeVisitRecord, statusBadgeClass, statusLabel, visitDisplayName, type VisitRecord } from "@/lib/visits";
 import { cancelVisitAction, updateVisitStatusAction } from "@/app/(protected)/visits/actions";
 import { RealtimeVisitsSync } from "@/components/visits/realtime-sync";
 import { ActionSubmit } from "@/components/visits/action-submit";
@@ -18,6 +18,7 @@ export default async function VisitDetailPage({ params, searchParams }: VisitDet
   const session = await getCurrentSession();
   const role = await getCurrentUserRole();
   const supabase = await createSupabaseServerClient();
+  await expireStaleVisits(supabase);
 
   const { data } = await supabase
     .from("visits")
@@ -30,6 +31,13 @@ export default async function VisitDetailPage({ params, searchParams }: VisitDet
   }
 
   const visit = normalizeVisitRecord(data as unknown as VisitRecord);
+  const { data: auditLogs } = await supabase
+    .from("audit_logs")
+    .select("id,action,created_at,meta")
+    .eq("entity", "visits")
+    .eq("entity_id", id)
+    .order("created_at", { ascending: false })
+    .limit(8);
   const canGuard = role === "guard" || role === "admin";
   const canCancel = role === "resident" && session?.user?.id === visit.resident_id && visit.status === "pending";
   const chatTarget = role === "resident" ? await getPrimaryGuardUserId() : role === "guard" ? visit.resident_id : null;
@@ -61,6 +69,22 @@ export default async function VisitDetailPage({ params, searchParams }: VisitDet
             Abrir chat de esta visita
           </a>
         ) : null}
+      </article>
+
+      <article className="space-y-2 rounded-2xl bg-white p-4 shadow-card">
+        <h2 className="text-sm font-semibold text-slate-700">Auditoría</h2>
+        {auditLogs?.length ? (
+          <ul className="space-y-2">
+            {auditLogs.map((log) => (
+              <li key={log.id} className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                <p className="font-medium">{log.action}</p>
+                <p>{new Date(log.created_at).toLocaleString()}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-slate-500">Sin eventos de auditoría visibles.</p>
+        )}
       </article>
 
       {(canGuard || canCancel) ? (

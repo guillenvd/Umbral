@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getCurrentSession, getCurrentUserRole } from "@/lib/auth/session";
-import { isVisitStatus, isVisitType, type VisitStatus, type VisitType } from "@/lib/visits";
+import { expireStaleVisits, isVisitStatus, isVisitType, type VisitStatus, type VisitType } from "@/lib/visits";
 
 async function getCurrentHouseId(userId: string) {
   const supabase = await createSupabaseServerClient();
@@ -134,6 +134,7 @@ export async function updateVisitStatusAction(formData: FormData) {
   }
 
   const supabase = await createSupabaseServerClient();
+  await expireStaleVisits(supabase);
   const { data: visit, error: visitError } = await supabase
     .from("visits")
     .select("id,status,type")
@@ -161,9 +162,18 @@ export async function updateVisitStatusAction(formData: FormData) {
     payload.decided_by = session.user.id;
   }
 
-  const { error } = await supabase.from("visits").update(payload).eq("id", visitId);
+  const { error, data: updated } = await supabase
+    .from("visits")
+    .update(payload)
+    .eq("id", visitId)
+    .eq("status", visit.status)
+    .select("id")
+    .limit(1);
   if (error) {
     redirect(`${redirectTo}?error=${encodeURIComponent(error.message)}`);
+  }
+  if (!updated?.length) {
+    redirect(`${redirectTo}?error=La%20visita%20ya%20fue%20actualizada`);
   }
 
   revalidatePath("/today");
@@ -185,6 +195,7 @@ export async function cancelVisitAction(formData: FormData) {
   }
 
   const supabase = await createSupabaseServerClient();
+  await expireStaleVisits(supabase);
   const { data: visit } = await supabase
     .from("visits")
     .select("id,resident_id,status")
@@ -195,16 +206,23 @@ export async function cancelVisitAction(formData: FormData) {
     redirect(`${redirectTo}${redirectTo.includes("?") ? "&" : "?"}error=No%20se%20puede%20cancelar%20esta%20visita`);
   }
 
-  const { error } = await supabase
+  const { error, data: updated } = await supabase
     .from("visits")
     .update({
       status: "cancelled",
       cancelled_at: new Date().toISOString()
     })
-    .eq("id", visitId);
+    .eq("resident_id", session.user.id)
+    .eq("status", "pending")
+    .eq("id", visitId)
+    .select("id")
+    .limit(1);
 
   if (error) {
     redirect(`${redirectTo}${redirectTo.includes("?") ? "&" : "?"}error=${encodeURIComponent(error.message)}`);
+  }
+  if (!updated?.length) {
+    redirect(`${redirectTo}${redirectTo.includes("?") ? "&" : "?"}error=La%20visita%20ya%20no%20se%20puede%20cancelar`);
   }
 
   revalidatePath("/history");

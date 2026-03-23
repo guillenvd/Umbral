@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 
 type ActionSubmitProps = {
@@ -11,19 +12,23 @@ type ActionSubmitProps = {
 
 export function ActionSubmit({ children, pendingLabel = "Procesando...", className, confirmMessage }: ActionSubmitProps) {
   const { pending } = useFormStatus();
+  const [locked, setLocked] = useState(false);
+  const disabled = pending || locked;
 
   return (
     <button
       type="submit"
       className={className}
-      disabled={pending}
+      disabled={disabled}
       onClick={(event) => {
         if (confirmMessage && !window.confirm(confirmMessage)) {
           event.preventDefault();
+          return;
         }
+        setLocked(true);
       }}
     >
-      {pending ? pendingLabel : children}
+      {disabled ? pendingLabel : children}
     </button>
   );
 }

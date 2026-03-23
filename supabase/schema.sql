@@ -177,6 +177,16 @@ create table if not exists public.messages (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.conversation_reads (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  peer_id uuid not null references public.profiles(id) on delete cascade,
+  last_read_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, peer_id)
+);
+
 create table if not exists public.announcements (
   id uuid primary key default gen_random_uuid(),
   created_by uuid not null references public.profiles(id) on delete restrict,
@@ -221,6 +231,7 @@ create index if not exists idx_visits_house_created on public.visits(house_id, c
 create index if not exists idx_messages_from_created on public.messages(from_user, created_at desc);
 create index if not exists idx_messages_to_created on public.messages(to_user, created_at desc);
 create index if not exists idx_messages_visit_created on public.messages(visit_id, created_at desc);
+create index if not exists idx_conversation_reads_user_peer on public.conversation_reads(user_id, peer_id);
 create index if not exists idx_announcements_published on public.announcements(is_published, published_at desc);
 create index if not exists idx_audit_entity_created on public.audit_logs(entity, created_at desc);
 
@@ -246,6 +257,11 @@ for each row execute function public.set_updated_at();
 drop trigger if exists trg_announcements_updated_at on public.announcements;
 create trigger trg_announcements_updated_at
 before update on public.announcements
+for each row execute function public.set_updated_at();
+
+drop trigger if exists trg_conversation_reads_updated_at on public.conversation_reads;
+create trigger trg_conversation_reads_updated_at
+before update on public.conversation_reads
 for each row execute function public.set_updated_at();
 
 -- ==========
@@ -355,6 +371,7 @@ alter table public.houses enable row level security;
 alter table public.house_members enable row level security;
 alter table public.visits enable row level security;
 alter table public.messages enable row level security;
+alter table public.conversation_reads enable row level security;
 alter table public.announcements enable row level security;
 alter table public.announcement_targets enable row level security;
 alter table public.audit_logs enable row level security;
@@ -480,6 +497,20 @@ with check (
     )
   )
 );
+
+drop policy if exists "conversation_reads_self_read" on public.conversation_reads;
+drop policy if exists "conversation_reads_self_write" on public.conversation_reads;
+
+create policy "conversation_reads_self_read"
+on public.conversation_reads
+for select
+using (user_id = auth.uid());
+
+create policy "conversation_reads_self_write"
+on public.conversation_reads
+for all
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
 
 -- Announcements
 create policy if not exists "announcements_read"

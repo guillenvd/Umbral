@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getCurrentSession, getCurrentUserRole } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cancelVisitAction } from "@/app/(protected)/visits/actions";
-import { isTerminalStatus, normalizeVisitRecord, statusBadgeClass, statusLabel, visitDisplayName, type VisitRecord } from "@/lib/visits";
+import { expireStaleVisits, isTerminalStatus, normalizeVisitRecord, statusBadgeClass, statusLabel, visitDisplayName, type VisitRecord } from "@/lib/visits";
 import { RealtimeVisitsSync } from "@/components/visits/realtime-sync";
 import { ActionSubmit } from "@/components/visits/action-submit";
 
@@ -16,6 +16,7 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
   const role = await getCurrentUserRole();
   const session = await getCurrentSession();
   const supabase = await createSupabaseServerClient();
+  await expireStaleVisits(supabase);
 
   let query = supabase
     .from("visits")
