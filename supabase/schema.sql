@@ -164,9 +164,10 @@ create table if not exists public.visits (
 
 create table if not exists public.messages (
   id uuid primary key default gen_random_uuid(),
-  house_id uuid not null references public.houses(id) on delete restrict,
-  sender_id uuid not null references public.profiles(id) on delete restrict,
-  body text not null check (length(body) > 0),
+  from_user uuid not null references public.profiles(id) on delete restrict,
+  to_user uuid not null references public.profiles(id) on delete restrict,
+  visit_id uuid references public.visits(id) on delete set null,
+  content text not null check (length(content) > 0),
   created_at timestamptz not null default now()
 );
 
@@ -210,7 +211,9 @@ create index if not exists idx_visits_eta on public.visits(eta_at);
 create index if not exists idx_visits_status on public.visits(status);
 create index if not exists idx_visits_type on public.visits(type);
 create index if not exists idx_visits_house_created on public.visits(house_id, created_at desc);
-create index if not exists idx_messages_house_created on public.messages(house_id, created_at desc);
+create index if not exists idx_messages_from_created on public.messages(from_user, created_at desc);
+create index if not exists idx_messages_to_created on public.messages(to_user, created_at desc);
+create index if not exists idx_messages_visit_created on public.messages(visit_id, created_at desc);
 create index if not exists idx_announcements_published on public.announcements(is_published, published_at desc);
 create index if not exists idx_audit_entity_created on public.audit_logs(entity, created_at desc);
 
@@ -296,7 +299,11 @@ begin
     'message_sent',
     'messages',
     new.id,
-    jsonb_build_object('house_id', new.house_id)
+    jsonb_build_object(
+      'from_user', new.from_user,
+      'to_user', new.to_user,
+      'visit_id', new.visit_id
+    )
   );
 
   return new;
@@ -428,23 +435,42 @@ for update
 using (public.current_role() = 'admin')
 with check (public.current_role() = 'admin');
 
--- Messages: residents only in own houses, guard/admin global
-create policy if not exists "messages_read"
+-- Messages (chat residente <-> caseta)
+drop policy if exists "messages_read" on public.messages;
+drop policy if exists "messages_insert" on public.messages;
+
+create policy "messages_read"
 on public.messages
 for select
 using (
-  public.is_house_member(house_id)
-  or public.current_role() in ('guard', 'admin')
+  from_user = auth.uid()
+  or to_user = auth.uid()
+  or (
+    public.current_role() = 'guard'
+    and exists (
+      select 1
+      from public.profiles p_from, public.profiles p_to
+      where p_from.id = from_user
+        and p_to.id = to_user
+        and (p_from.role = 'resident' or p_to.role = 'resident')
+    )
+  )
 );
 
-create policy if not exists "messages_insert"
+create policy "messages_insert"
 on public.messages
 for insert
 with check (
-  sender_id = auth.uid()
+  from_user = auth.uid()
   and (
-    public.is_house_member(house_id)
-    or public.current_role() in ('guard', 'admin')
+    (
+      public.current_role() = 'resident'
+      and exists (select 1 from public.profiles p where p.id = to_user and p.role = 'guard')
+    )
+    or (
+      public.current_role() = 'guard'
+      and exists (select 1 from public.profiles p where p.id = to_user and p.role = 'resident')
+    )
   )
 );
 

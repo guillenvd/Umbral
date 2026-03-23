@@ -26,7 +26,6 @@ const navByRole: Record<AppRole, Array<{ href: Route; label: string }>> = {
   admin: [
     { href: "/today", label: "Hoy" },
     { href: "/visits/new", label: "Nueva" },
-    { href: "/messages", label: "Mensajes" },
     { href: "/announcements", label: "Avisos" }
   ]
 };

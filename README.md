@@ -30,6 +30,10 @@ Base ejecutable de la **Fase 1** para Umbral: app mobile-first con Next.js App R
   - Detalle por visita con acciones (`/visits/[id]`)
   - Transiciones de estado controladas en backend
 - Realtime operativo en vistas de visitas (`/today`, `/history`, `/visits/[id]`) usando Supabase Realtime + `router.refresh()`
+- Chat 1:1 residente ↔ caseta con realtime:
+  - inbox en `/messages`
+  - conversación en `/chat/[id]`
+  - vinculación opcional a `visit_id`
 
 ## Estructura
 
@@ -92,7 +96,8 @@ Reglas implementadas en `lib/auth/roles.ts` + `middleware.ts`:
 
 - `/today` → `guard`, `admin`
 - `/visits/new` → `resident`
-- `/messages` → `resident`, `guard`, `admin`
+- `/messages` → `resident`, `guard`
+- `/chat/[id]` → `resident`, `guard`
 - `/history` → `resident`, `guard`, `admin`
 - `/announcements` → `resident`, `guard`, `committee`, `admin`
 
@@ -101,7 +106,8 @@ Si un usuario autenticado no tiene permiso, se redirige a `/unauthorized`.
 ## Nota sobre esta fase
 - Esta fase se enfoca en **VISITAS** end-to-end (visitor + delivery).
 - Incluye realtime para visitas.
-- Aún no incluye chat completo ni comunicados.
+- Incluye chat 1:1 residente ↔ caseta.
+- Aún no incluye comunicados en tiempo real avanzados.
 
 ## Realtime de visitas (Fase 3)
 - `components/visits/realtime-sync.tsx` crea una suscripción a `public.visits` (`postgres_changes`).
@@ -142,3 +148,14 @@ Transiciones implementadas en backend (`app/(protected)/visits/actions.ts`):
 - Delivery: `pending -> arrived -> authorized/rejected/delivered_gate/sent_to_house`
 - Cancelación residente: `pending -> cancelled`
 - `expired` queda documentado como siguiente paso para automatizar por job/cron.
+
+## Chat 1:1 (residente ↔ caseta)
+- Tabla `messages` modelada con:
+  - `from_user`, `to_user`, `visit_id` (nullable), `content`, `created_at`.
+- Reglas de producto:
+  - residente solo escribe a guardia/caseta
+  - guardia responde a residentes
+  - comité/admin no participan en chat operativo
+- Realtime chat:
+  - `/messages` usa canal `messages-inbox-all`
+  - `/chat/[id]` usa canal `messages-chat-<peerId>`

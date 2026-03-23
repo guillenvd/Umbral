@@ -5,6 +5,7 @@ import { normalizeVisitRecord, statusBadgeClass, statusLabel, visitDisplayName, 
 import { cancelVisitAction, updateVisitStatusAction } from "@/app/(protected)/visits/actions";
 import { RealtimeVisitsSync } from "@/components/visits/realtime-sync";
 import { ActionSubmit } from "@/components/visits/action-submit";
+import { getPrimaryGuardUserId } from "@/lib/chat";
 
 type VisitDetailProps = {
   params: Promise<{ id: string }>;
@@ -31,6 +32,7 @@ export default async function VisitDetailPage({ params, searchParams }: VisitDet
   const visit = normalizeVisitRecord(data as unknown as VisitRecord);
   const canGuard = role === "guard" || role === "admin";
   const canCancel = role === "resident" && session?.user?.id === visit.resident_id && visit.status === "pending";
+  const chatTarget = role === "resident" ? await getPrimaryGuardUserId() : role === "guard" ? visit.resident_id : null;
 
   return (
     <section className="space-y-4 pb-24">
@@ -54,6 +56,11 @@ export default async function VisitDetailPage({ params, searchParams }: VisitDet
           {visit.dropoff_location ? <p><span className="font-medium">Entrega:</span> {visit.dropoff_location === "gate" ? "Caseta" : "Casa"}</p> : null}
           {visit.type === "delivery" ? <p><span className="font-medium">Sin contacto:</span> {visit.contactless ? "Sí" : "No"}</p> : null}
         </div>
+        {chatTarget ? (
+          <a href={`/chat/${chatTarget}?visit_id=${visit.id}`} className="inline-flex rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium">
+            Abrir chat de esta visita
+          </a>
+        ) : null}
       </article>
 
       {(canGuard || canCancel) ? (
