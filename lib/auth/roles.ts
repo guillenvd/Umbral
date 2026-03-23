@@ -15,6 +15,7 @@ export const ROLE_ROUTE_RULES: Array<{ prefix: string; allowed: AppRole[] }> = [
   { prefix: "/chat", allowed: ["resident", "guard"] },
   { prefix: "/messages", allowed: ["resident", "guard"] },
   { prefix: "/history", allowed: ["resident", "guard", "admin"] },
+  { prefix: "/announcements/new", allowed: ["committee", "admin"] },
   { prefix: "/announcements", allowed: ["resident", "guard", "committee", "admin"] }
 ];
 

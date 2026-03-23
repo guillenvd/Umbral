@@ -35,6 +35,12 @@ exception
 end $$;
 
 do $$ begin
+  create type announcement_priority as enum ('normal', 'important', 'urgent');
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$ begin
   create type audit_action as enum (
     'visit_created',
     'visit_updated',
@@ -173,9 +179,10 @@ create table if not exists public.messages (
 
 create table if not exists public.announcements (
   id uuid primary key default gen_random_uuid(),
-  author_id uuid not null references public.profiles(id) on delete restrict,
+  created_by uuid not null references public.profiles(id) on delete restrict,
   title text not null,
   body text not null,
+  priority announcement_priority not null default 'normal',
   is_published boolean not null default true,
   published_at timestamptz not null default now(),
   created_at timestamptz not null default now(),

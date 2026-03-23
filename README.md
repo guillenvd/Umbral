@@ -34,6 +34,10 @@ Base ejecutable de la **Fase 1** para Umbral: app mobile-first con Next.js App R
   - inbox en `/messages`
   - conversación en `/chat/[id]`
   - vinculación opcional a `visit_id`
+- Broadcast de comunicados (Comité/Admin):
+  - feed en `/announcements`
+  - creación en `/announcements/new`
+  - realtime para nuevos comunicados
 
 ## Estructura
 
@@ -42,11 +46,13 @@ app/
 ├─ (auth)/login/page.tsx
 ├─ (protected)/
 │  ├─ layout.tsx
+│  ├─ announcements/new/page.tsx
 │  ├─ announcements/page.tsx
 │  ├─ history/page.tsx
 │  ├─ messages/page.tsx
 │  ├─ today/page.tsx
-│  └─ visits/new/page.tsx
+│  ├─ visits/new/page.tsx
+│  └─ chat/[id]/page.tsx
 ├─ unauthorized/page.tsx
 ├─ globals.css
 ├─ layout.tsx
@@ -100,14 +106,15 @@ Reglas implementadas en `lib/auth/roles.ts` + `middleware.ts`:
 - `/chat/[id]` → `resident`, `guard`
 - `/history` → `resident`, `guard`, `admin`
 - `/announcements` → `resident`, `guard`, `committee`, `admin`
+- `/announcements/new` → `committee`, `admin`
 
 Si un usuario autenticado no tiene permiso, se redirige a `/unauthorized`.
 
-## Nota sobre esta fase
-- Esta fase se enfoca en **VISITAS** end-to-end (visitor + delivery).
-- Incluye realtime para visitas.
-- Incluye chat 1:1 residente ↔ caseta.
-- Aún no incluye comunicados en tiempo real avanzados.
+## Nota sobre alcance actual
+- Visitas end-to-end (visitor + delivery).
+- Realtime de visitas.
+- Chat 1:1 residente ↔ caseta con realtime.
+- Broadcast de comunicados con creación por comité/admin y feed en vivo.
 
 ## Realtime de visitas (Fase 3)
 - `components/visits/realtime-sync.tsx` crea una suscripción a `public.visits` (`postgres_changes`).
@@ -159,3 +166,13 @@ Transiciones implementadas en backend (`app/(protected)/visits/actions.ts`):
 - Realtime chat:
   - `/messages` usa canal `messages-inbox-all`
   - `/chat/[id]` usa canal `messages-chat-<peerId>`
+
+## Broadcast (Comité/Admin)
+- Tabla `announcements` con campos base:
+  - `id`, `title`, `body`, `priority`, `created_by`, `created_at`.
+- Reglas:
+  - solo `committee`/`admin` crean comunicados;
+  - residentes y guardia solo lectura.
+- Realtime:
+  - `/announcements` usa canal `announcements-sync` y refresca feed en vivo.
+- Nota técnica completa: `docs/REALTIME_ANNOUNCEMENTS.md`.
