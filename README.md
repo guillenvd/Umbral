@@ -1,237 +1,99 @@
 # Umbral
 
-Base ejecutable de la **Fase 1** para Umbral: app mobile-first con Next.js App Router, Tailwind, componentes estilo shadcn, Supabase (SSR) y auth/roles iniciales.
+Aplicación web **mobile-first** para uso residencial interno: control de visitas/repartidores, operación de caseta, chat operativo 1:1 y comunicados broadcast.
 
-## Stack
-- Next.js (App Router, TypeScript)
-- Tailwind CSS
-- UI base inspirada en shadcn/ui (`components/ui/button.tsx` + utilidades)
-- Supabase (`@supabase/ssr`, `@supabase/supabase-js`)
+## Objetivo del sistema
+Umbral centraliza la operación diaria entre residentes y caseta en una sola PWA:
+- Registrar visitas y repartidores con estado operativo.
+- Permitir al guardia gestionar accesos en tiempo real.
+- Habilitar chat 1:1 residente ↔ caseta.
+- Publicar comunicados por Comité/Admin.
+- Mantener trazabilidad por auditoría y reglas RLS.
 
-## Qué incluye esta fase
-- Scaffold de proyecto Next.js listo para crecer
-- Integración Supabase:
-  - Cliente browser (`lib/supabase/client.ts`)
-  - Cliente server/SSR (`lib/supabase/server.ts`)
-- Auth básica por email/password (`/login`)
-- Resolución de rol (`user_metadata.role` con fallback a tabla `profiles`)
-- Guards de acceso por rol en `middleware.ts`
-- Layout mobile-first con header + **bottom navigation**
-- Rutas placeholder funcionales:
-  - `/today`
-  - `/visits/new`
-  - `/messages`
-  - `/history`
-  - `/announcements`
-- Modelo de visitas extendido para **visita** y **repartidor (delivery)** en una sola tabla `visits`
-- Flujo end-to-end de visitas:
-  - Crear visita/delivery con server action (`/visits/new`)
-  - Listado en cards para vecino/guardia (`/history`, `/today`)
-  - Detalle por visita con acciones (`/visits/[id]`)
-  - Transiciones de estado controladas en backend
-- Realtime operativo en vistas de visitas (`/today`, `/history`, `/visits/[id]`) usando Supabase Realtime + `router.refresh()`
-- Chat 1:1 residente ↔ caseta con realtime:
-  - inbox en `/messages`
-  - conversación en `/chat/[id]`
-  - vinculación opcional a `visit_id`
-- Broadcast de comunicados (Comité/Admin):
-  - feed en `/announcements`
-  - creación en `/announcements/new`
-  - realtime para nuevos comunicados
-- PWA base instalable:
-  - `manifest.webmanifest`
-  - íconos generados (`/icon`, `/apple-icon`)
-  - service worker mínimo (`/sw.js`) sin push notifications
-- Hardening operativo:
-  - expiración automática de visitas `pending` al cargar vistas operativas
-  - auditoría visible en detalle de visita
-  - unread badges en mensajes
-  - prevención adicional de doble submit
+## Stack tecnológico
+- **Frontend/App:** Next.js 15 (App Router) + React 19 + TypeScript.
+- **UI:** Tailwind CSS + componentes base estilo shadcn.
+- **Backend gestionado:** Supabase (Auth, Postgres, Realtime, RLS).
+- **Deploy objetivo:** Vercel.
+- **PWA:** `manifest.webmanifest`, `sw.js`, fallback offline.
 
-## Estructura
+## Roles del producto
+- **Resident:** crea/cancela visitas propias, consulta historial propio, chat con caseta, lee comunicados.
+- **Guard:** opera visitas del día (llegó/autoriza/rechaza/entrega), responde chats, lee comunicados.
+- **Committee:** crea comunicados broadcast y consulta historial de comunicados.
+- **Admin:** supervisión operativa y permisos amplios de gestión.
 
+## Módulos principales
+- **Visitas/Delivery:** flujo end-to-end con un solo modelo `visits`.
+- **Today (caseta):** lista operativa diaria con acciones rápidas.
+- **Historial:** consultas por estado/periodo para operación diaria.
+- **Chat 1:1:** inbox y conversación en tiempo real.
+- **Announcements:** feed de comunicados + creación por roles autorizados.
+- **PWA/Offline:** instalación y fallback sin conexión.
+- **Auditoría:** eventos en `audit_logs` para cambios críticos.
+
+## Estructura del repositorio
 ```txt
 app/
-├─ (auth)/login/page.tsx
-├─ (protected)/
-│  ├─ layout.tsx
-│  ├─ announcements/new/page.tsx
-│  ├─ announcements/page.tsx
-│  ├─ history/page.tsx
-│  ├─ messages/page.tsx
-│  ├─ today/page.tsx
-│  ├─ visits/new/page.tsx
-│  └─ chat/[id]/page.tsx
-├─ unauthorized/page.tsx
-├─ globals.css
-├─ layout.tsx
-├─ page.tsx
-└─ providers.tsx
-
+  (auth)/login/
+  (protected)/
+    announcements/
+    chat/
+    history/
+    messages/
+    today/
+    visits/
+  layout.tsx
+  manifest.ts
 components/
-├─ mobile/bottom-nav.tsx
-└─ ui/button.tsx
-
+  announcements/
+  chat/
+  mobile/
+  ui/
+  visits/
 lib/
-├─ auth/
-│  ├─ roles.ts
-│  └─ session.ts
-├─ supabase/
-│  ├─ client.ts
-│  └─ server.ts
-└─ utils.ts
-
+  auth/
+  supabase/
+  chat.ts
+  logger.ts
+  visits.ts
 supabase/
-└─ schema.sql
+  schema.sql
+docs/
+  PRODUCT.md
+  TECHNICAL.md
+  LOCAL_SETUP.md
+  RELEASE.md
+  PILOT_CHECKLIST.md
+  REALTIME_VISITS.md
+  REALTIME_CHAT.md
+  REALTIME_ANNOUNCEMENTS.md
 ```
 
-## Configuración local
+## Navegación de documentación
+- **Producto (qué y para quién):** `docs/PRODUCT.md`
+- **Técnica (cómo está construido):** `docs/TECHNICAL.md`
+- **Setup local paso a paso:** `docs/LOCAL_SETUP.md`
+- **Release/Deploy operativo:** `docs/RELEASE.md`
+- **Validación piloto en campo:** `docs/PILOT_CHECKLIST.md`
+- **Notas específicas de realtime:**
+  - `docs/REALTIME_VISITS.md`
+  - `docs/REALTIME_CHAT.md`
+  - `docs/REALTIME_ANNOUNCEMENTS.md`
 
-1. Instalar dependencias:
+## Comandos básicos
 ```bash
 npm install
-```
-
-2. Crear `.env.local`:
-```bash
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-```
-
-3. Correr en desarrollo:
-```bash
 npm run dev
+npm run lint
+npm run build
+npm run start
 ```
 
-4. Abrir:
-- `http://localhost:3000/login`
+## Estado actual (resumen)
+- Visitas + delivery funcionando end-to-end con transiciones de estado.
+- Realtime activo para `today`, `history`, detalle de visita, chat y announcements.
+- Guards de ruta por rol y autorización real en backend + RLS.
+- PWA instalable con estrategia offline mínima.
 
-## Roles y guards iniciales
-Reglas implementadas en `lib/auth/roles.ts` + `middleware.ts`:
-
-- `/today` → `guard`, `admin`
-- `/visits/new` → `resident`
-- `/messages` → `resident`, `guard`
-- `/chat/[id]` → `resident`, `guard`
-- `/history` → `resident`, `guard`, `admin`
-- `/announcements` → `resident`, `guard`, `committee`, `admin`
-- `/announcements/new` → `committee`, `admin`
-
-Si un usuario autenticado no tiene permiso, se redirige a `/unauthorized`.
-
-## Nota sobre alcance actual
-- Visitas end-to-end (visitor + delivery).
-- Realtime de visitas.
-- Chat 1:1 residente ↔ caseta con realtime.
-- Broadcast de comunicados con creación por comité/admin y feed en vivo.
-- Base PWA instalable y hardening operativo de flujos críticos.
-
-## Realtime de visitas (Fase 3)
-- `components/visits/realtime-sync.tsx` crea una suscripción a `public.visits` (`postgres_changes`).
-- Al recibir inserciones/updates/deletes, hace `router.refresh()` con un debounce corto para evitar flicker en móvil.
-- Se usa en:
-  - `/today` (operación de caseta en vivo)
-  - `/history` (lista del vecino/guardia en vivo)
-  - `/visits/[id]` (detalle en vivo por `id`)
-- Canales por vista:
-  - `/today` → `visits-today-sync-all`
-  - `/history` → `visits-history-sync-all`
-  - `/visits/[id]` → `visits-detail-sync-<id>`
-- Nota técnica completa: `docs/REALTIME_VISITS.md`.
-
-## Seguridad / RLS de visitas (Fase 3)
-Policies relevantes en `supabase/schema.sql`:
-- `visits_resident_guard_admin_read`
-  - Residente: solo sus propias visitas (`resident_id = auth.uid()`).
-  - Guardia/Admin: lectura global operativa.
-- `visits_resident_insert`
-  - Residente crea visitas solo para sí mismo y en vivienda activa.
-- `visits_resident_update_pending`
-  - Residente solo puede mutar visitas propias en `pending` y dejar `pending` o `cancelled`.
-- `visits_guard_update_operational`
-  - Guardia puede operar estados operativos, sin permiso para `cancelled`.
-- `visits_admin_update`
-  - Admin mantiene capacidad de supervisión/ajuste.
-
-Decisión de producto implementada:
-- **Quién crea visitas:** solo `resident`.
-- Alineación completa:
-  - UI/guards (`/visits/new`) solo para `resident`.
-  - `createVisitAction` rechaza cualquier rol distinto de `resident`.
-  - RLS `visits_resident_insert` permite insert únicamente a `resident` dueño de la visita.
-
-Transiciones implementadas en backend (`app/(protected)/visits/actions.ts`):
-- Visitor: `pending -> arrived -> authorized/rejected`
-- Delivery: `pending -> arrived -> authorized/rejected/delivered_gate/sent_to_house`
-- Cancelación residente: `pending -> cancelled`
-- `expired` queda documentado como siguiente paso para automatizar por job/cron.
-
-## Chat 1:1 (residente ↔ caseta)
-- Tabla `messages` modelada con:
-  - `from_user`, `to_user`, `visit_id` (nullable), `content`, `created_at`.
-- Reglas de producto:
-  - residente solo escribe a guardia/caseta
-  - guardia responde a residentes
-  - comité/admin no participan en chat operativo
-- Realtime chat:
-  - `/messages` usa canal `messages-inbox-all`
-  - `/chat/[id]` usa canal `messages-chat-<peerId>`
-
-## Broadcast (Comité/Admin)
-- Tabla `announcements` con campos base:
-  - `id`, `title`, `body`, `priority`, `created_by`, `created_at`.
-- Reglas:
-  - solo `committee`/`admin` crean comunicados;
-  - residentes y guardia solo lectura.
-- Realtime:
-  - `/announcements` usa canal `announcements-sync` y refresca feed en vivo.
-- Nota técnica completa: `docs/REALTIME_ANNOUNCEMENTS.md`.
-
-## PWA installable (sin push notifications)
-- Manifest en `app/manifest.ts`.
-- Íconos en `app/icon.tsx` y `app/apple-icon.tsx`.
-- Service worker mínimo en `public/sw.js`, registrado desde `app/providers.tsx`.
-- **No** se implementan push notifications en esta fase (queda como backlog de largo plazo).
-- Estrategia offline/caché:
-  - navegación: `network-first` con fallback a `public/offline.html`.
-  - assets estáticos (css/js/imágenes): `stale-while-revalidate` con caché runtime.
-  - versionado del SW con `SW_VERSION`; limpieza automática de caches viejas en `activate`.
-  - actualización: si hay SW nuevo, se envía `SKIP_WAITING` para activar más rápido.
-
-## Hardening operativo y UX polish
-- Expiración automática de visitas `pending`:
-  - helper `expireStaleVisits` en `lib/visits.ts`
-  - ejecutado en `/today`, `/history`, `/visits/[id]` y antes de mutaciones clave.
-- Auditoría visible:
-  - `/visits/[id]` muestra eventos recientes de `audit_logs` para la visita.
-- Unread chat badges:
-  - tabla `conversation_reads` + RLS para tracking por conversación.
-  - badge por conversación en `/messages`.
-  - contador total en bottom nav para residentes/guardia.
-- Doble submit/acciones duplicadas:
-  - botón `ActionSubmit` ahora bloquea envío múltiple de forma local además de `pending`.
-- Accesibilidad:
-  - foco visible en botones y navegación inferior.
-  - `aria-current` en item activo de bottom nav.
-  - skip-link global para saltar al contenido principal.
-  - tamaños táctiles mínimos preservados (`min-h-11` / `min-h-12`).
-- Performance:
-  - paginación básica en `/history` y `/messages` para reducir carga inicial en listas grandes.
-  - headers de caché para assets estáticos y no-cache explícito para `sw.js`.
-
-## Observabilidad / debugging
-- Logging estructurado en servidor:
-  - helper `lib/logger.ts` (`logServerError`) para errores en server actions y rutas críticas.
-  - puntos instrumentados: visitas (`create/update/cancel`), chat send/mark-read y consultas críticas de today/history/messages/detail.
-- Manejo de errores de usuario:
-  - banners en UI para degradación controlada cuando una consulta falla.
-  - `app/(protected)/error.tsx` y `app/(protected)/loading.tsx` para estados globales de ruta.
-
-## Checklist “pilot-ready”
-- [x] PWA instalable con manifest + iconos + service worker versionado.
-- [x] Fallback offline básico para navegación sin red.
-- [x] Reglas operativas de visitas con expiración y bloqueo de duplicados.
-- [x] Auditoría visible en detalle de visita.
-- [x] Accesibilidad base (focus visible, skip link, targets táctiles, estados de navegación).
-- [x] Observabilidad mínima con logging estructurado y errores visibles.
-- [x] Paginación básica en listas grandes para mejor rendimiento móvil.
+Para detalles completos y checklist operativo, usar la documentación en `docs/`.
