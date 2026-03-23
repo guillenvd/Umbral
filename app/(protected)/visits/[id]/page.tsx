@@ -1,0 +1,138 @@
+import { notFound } from "next/navigation";
+import { getCurrentSession, getCurrentUserRole } from "@/lib/auth/session";
+import { logServerError } from "@/lib/logger";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { expireStaleVisits, normalizeVisitRecord, statusBadgeClass, statusLabel, visitDisplayName, type VisitRecord } from "@/lib/visits";
+import { cancelVisitAction, updateVisitStatusAction } from "@/app/(protected)/visits/actions";
+import { RealtimeVisitsSync } from "@/components/visits/realtime-sync";
+import { ActionSubmit } from "@/components/visits/action-submit";
+import { getPrimaryGuardUserId } from "@/lib/chat";
+
+type VisitDetailProps = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ ok?: string; error?: string }>;
+};
+
+export default async function VisitDetailPage({ params, searchParams }: VisitDetailProps) {
+  const { id } = await params;
+  const query = await searchParams;
+  const session = await getCurrentSession();
+  const role = await getCurrentUserRole();
+  const supabase = await createSupabaseServerClient();
+  await expireStaleVisits(supabase);
+
+  const { data, error: visitError } = await supabase
+    .from("visits")
+    .select("id,resident_id,house_id,type,visitor_name,eta_at,status,note,delivery_company,delivery_type,dropoff_location,instructions,contactless,created_at,house:houses(code)")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (visitError) {
+    logServerError("visitDetail.fetchVisit", visitError, { visitId: id });
+  }
+  if (!data) {
+    notFound();
+  }
+
+  const visit = normalizeVisitRecord(data as unknown as VisitRecord);
+  const { data: auditLogs, error: auditError } = await supabase
+    .from("audit_logs")
+    .select("id,action,created_at,meta")
+    .eq("entity", "visits")
+    .eq("entity_id", id)
+    .order("created_at", { ascending: false })
+    .limit(8);
+  if (auditError) {
+    logServerError("visitDetail.fetchAudit", auditError, { visitId: id });
+  }
+  const canGuard = role === "guard" || role === "admin";
+  const canCancel = role === "resident" && session?.user?.id === visit.resident_id && visit.status === "pending";
+  const chatTarget = role === "resident" ? await getPrimaryGuardUserId() : role === "guard" ? visit.resident_id : null;
+
+  return (
+    <section className="space-y-4 pb-24">
+      <h1 className="text-xl font-semibold">Detalle de visita</h1>
+      <RealtimeVisitsSync visitId={id} channelName="visits-detail" />
+      {query.ok ? <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Estado actualizado.</p> : null}
+      {query.error ? <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{query.error}</p> : null}
+      {auditError ? <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-700">Auditoría temporalmente no disponible.</p> : null}
+
+      <article className="space-y-3 rounded-2xl bg-white p-4 shadow-card">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold">{visit.type === "delivery" ? "📦 Repartidor" : "👤 Visita"}</p>
+          <span className={`rounded-full px-2 py-1 text-xs font-medium ${statusBadgeClass(visit.status)}`}>{statusLabel(visit.status)}</span>
+        </div>
+        <div className="space-y-1 text-sm">
+          <p><span className="font-medium">Nombre/empresa:</span> {visitDisplayName(visit)}</p>
+          <p><span className="font-medium">Casa:</span> {visit.house?.code ?? "-"}</p>
+          <p><span className="font-medium">Hora estimada:</span> {new Date(visit.eta_at).toLocaleString()}</p>
+          {visit.note ? <p><span className="font-medium">Notas:</span> {visit.note}</p> : null}
+          {visit.delivery_type ? <p><span className="font-medium">Tipo entrega:</span> {visit.delivery_type}</p> : null}
+          {visit.instructions ? <p><span className="font-medium">Instrucciones:</span> {visit.instructions}</p> : null}
+          {visit.dropoff_location ? <p><span className="font-medium">Entrega:</span> {visit.dropoff_location === "gate" ? "Caseta" : "Casa"}</p> : null}
+          {visit.type === "delivery" ? <p><span className="font-medium">Sin contacto:</span> {visit.contactless ? "Sí" : "No"}</p> : null}
+        </div>
+        {chatTarget ? (
+          <a href={`/chat/${chatTarget}?visit_id=${visit.id}`} className="inline-flex rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium">
+            Abrir chat de esta visita
+          </a>
+        ) : null}
+      </article>
+
+      <article className="space-y-2 rounded-2xl bg-white p-4 shadow-card">
+        <h2 className="text-sm font-semibold text-slate-700">Auditoría</h2>
+        {auditLogs?.length ? (
+          <ul className="space-y-2">
+            {auditLogs.map((log) => (
+              <li key={log.id} className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                <p className="font-medium">{log.action}</p>
+                <p>{new Date(log.created_at).toLocaleString()}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-slate-500">Sin eventos de auditoría visibles.</p>
+        )}
+      </article>
+
+      {(canGuard || canCancel) ? (
+        <div className="fixed inset-x-0 bottom-16 z-40 mx-auto flex w-full max-w-md gap-2 border-t border-slate-200 bg-white p-3">
+          {canGuard && visit.status === "pending" ? (
+            <form action={updateVisitStatusAction} className="flex-1">
+              <input type="hidden" name="visit_id" value={visit.id} />
+              <input type="hidden" name="next_status" value="arrived" />
+              <input type="hidden" name="redirect_to" value={`/visits/${visit.id}`} />
+              <ActionSubmit className="w-full rounded-xl border border-slate-300 px-3 py-3 text-sm font-medium disabled:opacity-70">Llegó</ActionSubmit>
+            </form>
+          ) : null}
+
+          {canGuard && visit.status === "arrived" ? (
+            <form action={updateVisitStatusAction} className="flex-1">
+              <input type="hidden" name="visit_id" value={visit.id} />
+              <input type="hidden" name="next_status" value="authorized" />
+              <input type="hidden" name="redirect_to" value={`/visits/${visit.id}`} />
+              <ActionSubmit className="w-full rounded-xl bg-emerald-600 px-3 py-3 text-sm font-medium text-white disabled:opacity-70">Autorizar</ActionSubmit>
+            </form>
+          ) : null}
+
+          {canGuard && (visit.status === "pending" || visit.status === "arrived") ? (
+            <form action={updateVisitStatusAction} className="flex-1">
+              <input type="hidden" name="visit_id" value={visit.id} />
+              <input type="hidden" name="next_status" value="rejected" />
+              <input type="hidden" name="redirect_to" value={`/visits/${visit.id}`} />
+              <ActionSubmit className="w-full rounded-xl bg-rose-600 px-3 py-3 text-sm font-medium text-white disabled:opacity-70" confirmMessage="¿Confirmas rechazar esta visita?">Rechazar</ActionSubmit>
+            </form> 
+          ) : null}
+
+          {canCancel ? (
+            <form action={cancelVisitAction} className="flex-1">
+              <input type="hidden" name="visit_id" value={visit.id} />
+              <input type="hidden" name="redirect_to" value={`/visits/${visit.id}`} />
+              <ActionSubmit className="w-full rounded-xl bg-rose-600 px-3 py-3 text-sm font-medium text-white disabled:opacity-70" confirmMessage="¿Seguro que quieres cancelar esta visita?">Cancelar</ActionSubmit>
+            </form>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
